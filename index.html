@@ -118,6 +118,14 @@
   .tipos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .tipos button{min-height:52px;border-radius:10px;border:1px solid var(--field);background:#fff;color:var(--ink);font-size:15px;font-weight:600}
   .tipos button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .prod{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+  .prod .name{flex:1;min-width:0}
+  .prod .name b{display:block;font-size:14px;font-weight:600;line-height:1.3}
+  .prod .name small{font-size:12px;color:var(--muted)}
+  .stock-ok{color:var(--live);font-weight:600}
+  .stock-no{color:var(--accent-dk);font-weight:600}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips button{min-height:40px;padding:0 14px;border-radius:20px;border:1px solid var(--field);background:#fff;color:var(--ink);font-size:13px;font-weight:600}
   .demo{background:var(--accent-dk);color:#fff;font-size:12px;text-align:center;padding:4px}
 </style>
 </head>
@@ -137,6 +145,12 @@
     <div class="progress"><span class="on"></span><span></span><span></span><span></span></div>
     <div class="step">Paso 1 de 4: cliente y vehículo</div>
     <div class="body">
+      <div class="card" id="sucCard" style="display:none">
+        <h3>¿En qué sucursal está este dispositivo?</h3>
+        <div class="hint" style="font-size:13px">Se elige una sola vez y queda guardada en este equipo.</div>
+        <div id="sucList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+      <div id="paso1" style="display:flex;flex-direction:column;gap:14px">
       <div class="field">
         <label for="doc">DNI o CUIT del cliente</label>
         <div class="row">
@@ -207,6 +221,7 @@
           <select id="operario" onchange="checkPaso1()"></select>
         </div>
       </div>
+      </div>
     </div>
     <div class="foot"><button class="cta" id="next1" onclick="go(2)" disabled>Siguiente: servicios</button></div>
   </section>
@@ -220,9 +235,26 @@
     <div class="progress"><span class="on"></span><span class="on"></span><span></span><span></span></div>
     <div class="step">Paso 2 de 4: servicios (el precio lo pone la lista de Odoo)</div>
     <div class="body" id="svcList" style="gap:8px"></div>
+    <div class="body" style="padding-top:0;gap:10px">
+      <div class="lbl" style="font-size:16px">Productos (neumáticos, picos, etc.)</div>
+      <div class="row">
+        <input id="prodQ" placeholder="Medida o nombre: 205 55 16, pico…" autocomplete="off" style="flex:1;min-width:0" onkeydown="if(event.key==='Enter')buscarProducto()">
+        <button class="btn btn-dark" id="btnProd" style="height:52px" onclick="buscarProducto()">Buscar</button>
+      </div>
+      <div class="chips">
+        <button onclick="rapido('PICO')">Picos</button>
+        <button onclick="rapido('VALVULA')">Válvulas</button>
+      </div>
+      <div class="msg-err" id="prodErr" style="display:none"></div>
+      <div id="prodRes" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="prodSelWrap" style="display:none;flex-direction:column;gap:8px">
+        <div class="lbl">Agregados a la orden</div>
+        <div id="prodSel" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
     <div class="foot sticky">
       <div class="row" style="align-items:baseline">
-        <div style="font-size:14px;color:var(--muted)"><span id="svcCount">0</span> servicios seleccionados</div>
+        <div style="font-size:14px;color:var(--muted)"><span id="svcCount">0</span> servicios, <span id="prodCount">0</span> productos</div>
       </div>
       <button class="cta" id="next2" onclick="go(3)">Pasar al trabajo</button>
     </div>
@@ -300,10 +332,44 @@
 const CONFIG = {
   WEBHOOK_URL: 'https://envy-recollect-last.ngrok-free.dev/webhook/ot-taller',
   HEADER_NAME: 'X-OT-Key',          // mismo nombre que la credencial Header Auth del Webhook
-  SUCURSAL: { codigo: 'maipu', nombre: 'Sucursal Maipú' },  // codigo = clave de SUCURSALES en el nodo "Preparar orden"
-  OPERARIOS: ['[Operario 1]', '[Operario 2]', '[Operario 3]'],
+  // Clave = código que viaja a n8n (tiene que existir en SUCURSALES del nodo "Preparar orden")
+  SUCURSALES: {
+    maipu:    { nombre: 'Sucursal Maipú', operarios: ['[Operario 1]', '[Operario 2]', '[Operario 3]'] },
+    eldorado: { nombre: 'Eldorado',       operarios: ['[Operario 1]'] },
+    ctes1:    { nombre: 'Corrientes 1',   operarios: ['[Operario 1]'] },
+    ctes2:    { nombre: 'Corrientes 2',   operarios: ['[Operario 1]'] },
+    obera:    { nombre: 'Oberá',          operarios: ['[Operario 1]'] }
+  },
   PROXIMO: { ali: { km: 10000, meses: 6 }, bal: { km: 10000, meses: 6 } }  // regla de próximo servicio
 };
+
+/* ---------- Sucursal del dispositivo ----------
+   1) ?suc=codigo en la URL (link que se guarda en cada tablet) → se recuerda en el dispositivo
+   2) si no viene en la URL, usa la recordada
+   3) si no hay ninguna, pide elegirla una vez */
+let sucursal = null;
+function detectarSucursal(){
+  const q = new URLSearchParams(location.search).get('suc');
+  if(q && CONFIG.SUCURSALES[q]){ try{ localStorage.setItem('ot_suc', q); }catch(e){} return q; }
+  let g = null; try{ g = localStorage.getItem('ot_suc'); }catch(e){}
+  return g && CONFIG.SUCURSALES[g] ? g : null;
+}
+function aplicarSucursal(cod){
+  sucursal = cod;
+  try{ localStorage.setItem('ot_suc', cod); }catch(e){}
+  const suc = CONFIG.SUCURSALES[cod];
+  document.getElementById('sucursalLbl').textContent = suc.nombre;
+  document.getElementById('operario').innerHTML = '<option value="">Elegí un operario</option>' + suc.operarios.map(o => `<option>${o}</option>`).join('');
+  document.getElementById('sucCard').style.display = 'none';
+  document.getElementById('paso1').style.display = 'flex';
+  checkPaso1();
+}
+function pedirSucursal(){
+  document.getElementById('sucList').innerHTML = Object.entries(CONFIG.SUCURSALES).map(([cod, suc]) =>
+    `<button class="pick" onclick="aplicarSucursal('${cod}')"><span><b>${suc.nombre}</b></span></button>`).join('');
+  document.getElementById('sucCard').style.display = 'flex';
+  document.getElementById('paso1').style.display = 'none';
+}
 const DEMO = !CONFIG.WEBHOOK_URL;
 
 /* ---------- API a n8n ---------- */
@@ -347,7 +413,7 @@ function demoBuscar(doc, tipo){
 let partner = null, abiertaEn = null;
 function go(n){
   if(n > 1 && !partner) return;
-  if(n === 3 && !services.some(s => s.qty > 0)) return;
+  if(n === 3 && !services.some(s => s.qty > 0) && !productos.length) return;
   document.querySelectorAll('.js-plate').forEach(e => e.textContent = patente());
   document.querySelectorAll('.js-km').forEach(e => e.textContent = Number(kmVal()).toLocaleString('es-AR'));
   if(n === 3 && !abiertaEn){ abiertaEn = new Date(); document.getElementById('abiertaLbl').textContent = 'Orden abierta ' + hhmm(abiertaEn); }
@@ -469,7 +535,7 @@ function setPartner(p, esNuevo){
   checkPaso1();
 }
 function checkPaso1(){
-  const ok = !!partner && !!vehTipo && patente().replace(/\s/g,'').length >= 6 && kmVal().length > 0 && !!document.getElementById('operario').value;
+  const ok = !!sucursal && !!partner && !!vehTipo && patente().replace(/\s/g,'').length >= 6 && kmVal().length > 0 && !!document.getElementById('operario').value;
   document.getElementById('next1').disabled = !ok;
 }
 
@@ -514,9 +580,73 @@ function renderServices(){
     </div>`).join('');
   const n = services.filter(s => s.qty > 0).length;
   document.getElementById('svcCount').textContent = n;
-  document.getElementById('next2').disabled = n === 0;
+  actualizarNext2();
 }
 function setQty(id, d){ const s = services.find(x => x.id === id); s.qty = Math.max(0, s.qty + d); renderServices(); }
+
+/* ---------- Paso 2: productos (búsqueda en Odoo) ---------- */
+const productos = [];   // { id, name, precio, stock, qty }
+const money = v => '$ ' + Number(v || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+function rapido(q){ document.getElementById('prodQ').value = q; buscarProducto(); }
+async function buscarProducto(){
+  const q = document.getElementById('prodQ').value.trim();
+  const err = document.getElementById('prodErr'), res = document.getElementById('prodRes');
+  err.style.display = 'none';
+  if(q.replace(/[^a-z0-9]/gi, '').length < 3){ err.textContent = 'Escribí al menos 3 letras o números.'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('btnProd');
+  let data;
+  try{
+    busy(btn, true, '…');
+    data = DEMO
+      ? { productos: [{ id: 900001, name: '205/55R16 NEUMATICO DEMO', code: 'DEMO1', precio: 150000, stock: 4 }, { id: 900002, name: 'PICO DEMO', code: 'DEMO2', precio: 3000, stock: 0 }] }
+      : await api('buscar_producto', { q, sucursal });
+  }catch(e){ err.textContent = e.message; err.style.display = 'block'; return; }
+  finally{ busy(btn, false); }
+  const lista = data.productos || [];
+  if(!lista.length){ res.innerHTML = '<div class="hint">Sin resultados. Probá con menos palabras o solo la medida.</div>'; return; }
+  res.innerHTML = '';
+  lista.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'prod';
+    d.innerHTML = `<div class="name"><b></b><small></small></div><button class="btn btn-accent" style="min-height:44px">Agregar</button>`;
+    d.querySelector('b').textContent = p.name;
+    d.querySelector('small').innerHTML = `${money(p.precio)} s/IVA · <span class="${p.stock > 0 ? 'stock-ok' : 'stock-no'}">${p.stock > 0 ? p.stock + ' en sucursal' : 'sin stock en sucursal'}</span>`;
+    d.querySelector('button').onclick = () => agregarProducto(p);
+    res.appendChild(d);
+  });
+}
+function agregarProducto(p){
+  const ya = productos.find(x => x.id === p.id);
+  if(ya) ya.qty += 1; else productos.push(Object.assign({}, p, { qty: 1 }));
+  renderProductos();
+}
+function setProdQty(id, d){
+  const x = productos.find(p => p.id === id); if(!x) return;
+  x.qty = Math.max(0, x.qty + d);
+  if(x.qty === 0) productos.splice(productos.indexOf(x), 1);
+  renderProductos();
+}
+function renderProductos(){
+  const box = document.getElementById('prodSel');
+  box.innerHTML = '';
+  productos.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'svc sel';
+    d.innerHTML = `<div class="name"><b style="font-size:14px"></b><small></small></div>
+      <button class="qbtn minus" aria-label="Quitar uno">−</button><div class="qty">${p.qty}</div><button class="qbtn plus" aria-label="Agregar uno">+</button>`;
+    d.querySelector('b').textContent = p.name;
+    d.querySelector('small').textContent = money(p.precio) + ' s/IVA c/u' + (p.qty > p.stock ? ' · supera el stock de la sucursal' : '');
+    d.querySelector('.minus').onclick = () => setProdQty(p.id, -1);
+    d.querySelector('.plus').onclick = () => setProdQty(p.id, 1);
+    box.appendChild(d);
+  });
+  document.getElementById('prodSelWrap').style.display = productos.length ? 'flex' : 'none';
+  document.getElementById('prodCount').textContent = productos.length;
+  actualizarNext2();
+}
+function actualizarNext2(){
+  document.getElementById('next2').disabled = !services.some(s => s.qty > 0) && !productos.length;
+}
 
 /* ---------- Paso 3: trabajos con cronómetro ---------- */
 const jobs = {}; let tick = null;
@@ -588,7 +718,7 @@ function renderSummary(){
     const j = jobs[s.id], m = mins(j);
     const extra = [m ? m + ' min' : null, s.id === 'bal' && j && j.grams ? j.grams + ' g' : null].filter(Boolean).join(', ');
     return `<div class="line"><span>${s.name} ×${s.qty}</span><span class="hint" style="font-size:14px">${extra || 'sin tiempo'}</span></div>`;
-  }).join('');
+  }).join('') + productos.map(p => `<div class="line"><span>${p.name.replace(/</g,'&lt;')} ×${p.qty}</span></div>`).join('');
   const p = proximo();
   document.getElementById('proximoTxt').textContent = p ? p.texto : 'Sin regla para los servicios elegidos.';
 }
@@ -597,13 +727,14 @@ async function enviar(){
   const sel = services.filter(s => s.qty > 0);
   const payload = {
     partner_id: partner.id,
-    sucursal: CONFIG.SUCURSAL.codigo,
+    sucursal: sucursal,
     vehiculo_tipo: vehTipo,
     patente: patente(),
     km: kmVal(),
     operario: document.getElementById('operario').value,
     abierta: abiertaEn ? abiertaEn.toISOString() : null,
     servicios: sel.map(s => ({ id: s.id, nombre: s.name, qty: s.qty, minutos: mins(jobs[s.id]), gramos: s.id === 'bal' && jobs[s.id] ? jobs[s.id].grams : null })),
+    productos: productos.map(p => ({ product_id: p.id, nombre: p.name, qty: p.qty })),
     ruedas: Object.keys(wheelNames).map(k => ({ rueda: wheelNames[k], estado: wheelOpts.find(o => o[0] === wheelState[k])[1], psi: document.getElementById('psi_' + k).value.replace(/\D/g,'') })),
     observaciones: document.getElementById('obs').value.trim(),
     proximo: proximo()
@@ -641,8 +772,8 @@ cv.addEventListener('pointercancel', () => drawing = false);
 function clearSign(){ ctx.clearRect(0, 0, cv.width, cv.height); }
 
 /* ---------- Inicio ---------- */
-document.getElementById('sucursalLbl').textContent = CONFIG.SUCURSAL.nombre;
-document.getElementById('operario').innerHTML = '<option value="">Elegí un operario</option>' + CONFIG.OPERARIOS.map(o => `<option>${o}</option>`).join('');
+const suc0 = detectarSucursal();
+if(suc0) aplicarSucursal(suc0); else pedirSucursal();
 if(DEMO) document.getElementById('demoBar').style.display = 'block';
 renderTipos(); renderServices(); renderWheels();
 </script>
