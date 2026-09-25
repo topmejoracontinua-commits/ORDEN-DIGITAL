@@ -115,6 +115,9 @@
   .pick small{display:block;font-size:12px;color:var(--muted)}
   .msg-err{color:var(--accent-dk);font-size:13px;font-weight:600}
   button:disabled{opacity:.45;cursor:not-allowed}
+  .tipos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tipos button{min-height:52px;border-radius:10px;border:1px solid var(--field);background:#fff;color:var(--ink);font-size:15px;font-weight:600}
+  .tipos button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
   .demo{background:var(--accent-dk);color:#fff;font-size:12px;text-align:center;padding:4px}
 </style>
 </head>
@@ -187,6 +190,11 @@
 
       <div id="vehiculo" style="display:none;flex-direction:column;gap:14px">
         <div class="field">
+          <span class="lbl" id="tipoLbl">Tipo de vehículo</span>
+          <div class="tipos" role="group" aria-labelledby="tipoLbl" id="tipos"></div>
+          <div class="hint">Define qué producto y precio de Odoo se usa para cada servicio.</div>
+        </div>
+        <div class="field">
           <label for="patente">Patente</label>
           <input id="patente" class="plate-input" autocomplete="off" placeholder="AA 000 AA" oninput="this.value=this.value.toUpperCase();checkPaso1()">
         </div>
@@ -206,7 +214,7 @@
   <!-- 2 · SERVICIOS -->
   <section class="screen" id="s2" aria-label="Paso 2: servicios">
     <header>
-      <div><div class="plate js-plate"></div><div class="sub"><span class="js-cliente"></span>, <span class="js-km"></span> km</div></div>
+      <div><div class="plate js-plate"></div><div class="sub"><span class="js-tipo"></span>, <span class="js-km"></span> km</div></div>
       <button class="back" onclick="go(1)">Volver</button>
     </header>
     <div class="progress"><span class="on"></span><span class="on"></span><span></span><span></span></div>
@@ -293,7 +301,7 @@ const CONFIG = {
   WEBHOOK_URL: 'https://envy-recollect-last.ngrok-free.dev/webhook/ot-taller',
   HEADER_NAME: 'X-OT-Key',          // mismo nombre que la credencial Header Auth del Webhook
   SUCURSAL: { codigo: 'maipu', nombre: 'Sucursal Maipú' },  // codigo = clave de SUCURSALES en el nodo "Preparar orden"
-  OPERARIOS: ['Nombre Apellido 1', 'Nombre Apellido 2', 'Nombre Apellido 3'],
+  OPERARIOS: ['[Operario 1]', '[Operario 2]', '[Operario 3]'],
   PROXIMO: { ali: { km: 10000, meses: 6 }, bal: { km: 10000, meses: 6 } }  // regla de próximo servicio
 };
 const DEMO = !CONFIG.WEBHOOK_URL;
@@ -317,8 +325,11 @@ async function api(action, payload){
     body: JSON.stringify(Object.assign({ action }, payload))
   });
   if(r.status === 401 || r.status === 403){ try{ localStorage.removeItem('ot_key'); }catch(e){} throw new Error('Clave incorrecta. Volvé a intentar.'); }
-  if(!r.ok) throw new Error('Error del servidor (' + r.status + '). Avisá a sistemas.');
-  return r.json();
+  const txt = await r.text();
+  if(!r.ok) throw new Error('Error del servidor (' + r.status + '): ' + (txt || 'sin detalle') + '. Revisá Executions en n8n.');
+  if(!txt) throw new Error('n8n respondió vacío (no llegó a un nodo "Respond to Webhook"). Revisá Executions en n8n y si la orden se creó en Odoo antes de reintentar.');
+  try { return JSON.parse(txt); }
+  catch(e){ throw new Error('Respuesta no válida de n8n: ' + txt.slice(0, 120)); }
 }
 function busy(btn, on, txt){
   if(on){ btn.dataset.txt = btn.textContent; btn.textContent = txt; btn.disabled = true; }
@@ -458,22 +469,43 @@ function setPartner(p, esNuevo){
   checkPaso1();
 }
 function checkPaso1(){
-  const ok = !!partner && patente().replace(/\s/g,'').length >= 6 && kmVal().length > 0 && !!document.getElementById('operario').value;
+  const ok = !!partner && !!vehTipo && patente().replace(/\s/g,'').length >= 6 && kmVal().length > 0 && !!document.getElementById('operario').value;
   document.getElementById('next1').disabled = !ok;
 }
 
 /* ---------- Paso 2: servicios ---------- */
-const services = [
-  { id: 'ali', name: 'Alineación', sub: 'Por vehículo', qty: 0 },
-  { id: 'bal', name: 'Balanceo', sub: 'Por rueda', qty: 0 },
-  { id: 'rot', name: 'Rotación', sub: 'Por vehículo', qty: 0 },
-  { id: 'par', name: 'Parches', sub: 'Por unidad', qty: 0 },
-  { id: 'com', name: 'Comba', sub: 'Por vehículo', qty: 0 },
-  { id: 'des', name: 'Desarme y arme', sub: 'Por rueda', qty: 0 },
-  { id: 'ace', name: 'Aceite y filtros', sub: 'Por vehículo', qty: 0 }
+const TIPOS = [
+  { id: 'coche', nombre: 'Auto' },
+  { id: 'camioneta', nombre: 'Camioneta' },
+  { id: 'combi', nombre: 'Combi' },
+  { id: 'camion_liviano', nombre: 'Camión liviano' },
+  { id: 'camion', nombre: 'Camión' }
 ];
+let vehTipo = null;
+
+// tipos = tipos de vehículo que tienen producto cargado en Odoo para ese servicio
+const services = [
+  { id: 'ali', name: 'Alineación', sub: 'Por vehículo', qty: 0, tipos: ['coche','camioneta','combi','camion_liviano','camion'] },
+  { id: 'bal', name: 'Balanceo', sub: 'Por rueda', qty: 0, tipos: ['coche','camioneta','combi','camion_liviano','camion'] },
+  { id: 'rot', name: 'Rotación', sub: 'Por vehículo', qty: 0, tipos: ['coche','camioneta','camion_liviano','camion'] },
+  { id: 'par', name: 'Parche extra', sub: 'Por unidad', qty: 0, tipos: ['coche','camioneta','camion_liviano','camion'] },
+  { id: 'des', name: 'Desarme y arme', sub: 'Por rueda', qty: 0, tipos: ['coche','camioneta','camion_liviano','camion'] }
+];
+const disponibles = () => services.filter(s => vehTipo && s.tipos.includes(vehTipo));
+
+function renderTipos(){
+  document.getElementById('tipos').innerHTML = TIPOS.map(t =>
+    `<button aria-pressed="${vehTipo === t.id}" onclick="setTipo('${t.id}')">${t.nombre}</button>`).join('');
+}
+function setTipo(id){
+  vehTipo = id;
+  services.forEach(s => { if(!s.tipos.includes(id)) s.qty = 0; });
+  document.querySelectorAll('.js-tipo').forEach(e => e.textContent = TIPOS.find(t => t.id === id).nombre);
+  renderTipos(); renderServices(); checkPaso1();
+}
+
 function renderServices(){
-  document.getElementById('svcList').innerHTML = services.map(s => `
+  document.getElementById('svcList').innerHTML = disponibles().map(s => `
     <div class="svc ${s.qty > 0 ? 'sel' : ''}">
       <div class="name"><b>${s.name}</b><small>${s.sub}</small></div>
       <button class="qbtn minus" aria-label="Quitar ${s.name}" onclick="setQty('${s.id}',-1)">−</button>
@@ -566,6 +598,7 @@ async function enviar(){
   const payload = {
     partner_id: partner.id,
     sucursal: CONFIG.SUCURSAL.codigo,
+    vehiculo_tipo: vehTipo,
     patente: patente(),
     km: kmVal(),
     operario: document.getElementById('operario').value,
@@ -611,7 +644,7 @@ function clearSign(){ ctx.clearRect(0, 0, cv.width, cv.height); }
 document.getElementById('sucursalLbl').textContent = CONFIG.SUCURSAL.nombre;
 document.getElementById('operario').innerHTML = '<option value="">Elegí un operario</option>' + CONFIG.OPERARIOS.map(o => `<option>${o}</option>`).join('');
 if(DEMO) document.getElementById('demoBar').style.display = 'block';
-renderServices(); renderWheels();
+renderTipos(); renderServices(); renderWheels();
 </script>
 </body>
 </html>
