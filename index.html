@@ -290,10 +290,10 @@
    Ejemplo: 'https://envy-recollect-last.ngrok-free.dev/webhook/ot-taller'
    ===================================================================== */
 const CONFIG = {
-  WEBHOOK_URL: '',
+  WEBHOOK_URL: 'https://envy-recollect-last.ngrok-free.dev/webhook/ot-taller',
   HEADER_NAME: 'X-OT-Key',          // mismo nombre que la credencial Header Auth del Webhook
   SUCURSAL: { codigo: 'maipu', nombre: 'Sucursal Maipú' },  // codigo = clave de SUCURSALES en el nodo "Preparar orden"
-  OPERARIOS: ['[Operario 1]', '[Operario 2]', '[Operario 3]'],
+  OPERARIOS: ['Nombre Apellido 1', 'Nombre Apellido 2', 'Nombre Apellido 3'],
   PROXIMO: { ali: { km: 10000, meses: 6 }, bal: { km: 10000, meses: 6 } }  // regla de próximo servicio
 };
 const DEMO = !CONFIG.WEBHOOK_URL;
