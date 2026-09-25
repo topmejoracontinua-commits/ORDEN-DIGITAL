@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orden de trabajo digital – Taller Top</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1b1d1f; --ground:#f2f0eb; --card:#ffffff; --line:#d9d5cc; --field:#b8b3a8;
+    --muted:#5b5750; --accent:#c2410c; --accent-dk:#9a3412; --live:#1d4ed8; --soft:#ece9e2;
+    --display:'Barlow Condensed','Arial Narrow',sans-serif;
+    --body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#dedad2;color:var(--ink);font-family:var(--body);-webkit-text-size-adjust:100%}
+  .app{max-width:430px;min-height:100vh;margin:0 auto;background:var(--ground);display:flex;flex-direction:column;
+       padding-bottom:env(safe-area-inset-bottom,0px)}
+  .screen{display:none;flex-direction:column;flex-grow:1}
+  .screen.active{display:flex}
+
+  header{background:var(--ink);color:#fff;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 16px;
+         display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .brand{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.5px}
+  .plate{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:1px}
+  .sub{font-size:13px;color:#d6d3cc}
+  .back{background:none;border:none;color:#fff;font:inherit;font-size:14px;text-decoration:underline;min-height:44px;padding:0 4px;cursor:pointer}
+
+  .progress{display:flex;gap:6px;padding:14px 20px 0}
+  .progress span{flex:1;height:5px;border-radius:3px;background:var(--line)}
+  .progress span.on{background:var(--accent)}
+  .step{padding:8px 20px 0;font-size:13px;color:var(--muted)}
+
+  .body{padding:16px 20px;display:flex;flex-direction:column;gap:14px;flex-grow:1}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .card h3{margin:0;font-size:16px;font-weight:600}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .hint{font-size:12px;color:var(--muted);line-height:1.45}
+  label,.lbl{font-size:14px;font-weight:600}
+  .field{display:flex;flex-direction:column;gap:6px}
+  input,select,textarea{font-family:var(--body);color:var(--ink);background:#fff;border:1px solid var(--field);border-radius:10px;font-size:17px}
+  input,select{height:52px;padding:0 14px}
+  textarea{height:84px;padding:10px 12px;resize:none;font-size:15px}
+  input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--live);outline-offset:2px}
+  .plate-input{flex:1;min-width:0;height:56px;border:2px solid var(--ink);font-family:var(--display);font-size:30px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .kv small{display:block;font-size:12px;color:var(--muted)}
+  .kv b{font-size:15px;font-weight:600}
+  .found{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--live)}
+
+  button{font-family:var(--body);cursor:pointer}
+  .btn{border:none;border-radius:10px;font-size:15px;font-weight:600;min-height:48px;padding:0 18px}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-accent{background:var(--accent);color:#fff}
+  .btn-accent:hover{background:var(--accent-dk)}
+  .btn-ghost{background:#fff;border:1px solid var(--ink);color:var(--ink)}
+  .cta{display:flex;justify-content:center;align-items:center;width:100%;height:56px;border:none;border-radius:12px;
+       background:var(--accent);color:#fff;font-size:17px;font-weight:600}
+  .cta:hover{background:var(--accent-dk)}
+  .cta.dark{background:var(--ink)}
+  .foot{padding:12px 20px 24px}
+  .foot.sticky{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+  .link{background:none;border:none;padding:0;color:var(--accent);font-size:13px;font-weight:600;text-decoration:underline;align-self:flex-start;min-height:32px}
+
+  /* Servicios */
+  .svc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:10px;min-height:64px}
+  .svc.sel{border:2px solid var(--accent)}
+  .svc .name{flex:1}
+  .svc .name b{display:block;font-size:16px;font-weight:600}
+  .svc .name small{font-size:12px;color:var(--muted)}
+  .qbtn{width:44px;height:44px;border-radius:10px;font-size:22px;line-height:1}
+  .qbtn.minus{border:1px solid var(--field);background:var(--ground);color:var(--ink)}
+  .qbtn.plus{border:none;background:var(--ink);color:#fff}
+  .qty{width:26px;text-align:center;font-family:var(--display);font-size:24px;font-weight:700}
+  .svc.dashed{border:1px dashed #8a857b}
+  .total{font-family:var(--display);font-size:26px;font-weight:700}
+
+  /* Trabajo */
+  .job.running{border:2px solid var(--live)}
+  .pill{font-size:12px;font-weight:600;border-radius:20px;padding:4px 10px}
+  .pill.live{background:var(--live);color:#fff}
+  .pill.wait{background:var(--soft);color:var(--muted)}
+  .pill.done{background:var(--ink);color:#fff}
+  .clock{font-family:var(--display);font-size:40px;font-weight:700;color:var(--live);font-variant-numeric:tabular-nums}
+  .wheel{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .wheel b{font-size:13px}
+  .psi{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .psi input{width:70px;height:40px;font-size:15px;padding:0 8px;border-radius:8px}
+  .opts{display:flex;gap:4px}
+  .opts button{flex:1;height:44px;border-radius:8px;border:1px solid var(--field);background:#fff;color:var(--ink);font-size:12px;font-weight:600;padding:0}
+  .opts button[aria-pressed="true"][data-v="ok"]{background:var(--live);border-color:var(--live);color:#fff}
+  .opts button[aria-pressed="true"][data-v="reg"]{background:var(--accent-dk);border-color:var(--accent-dk);color:#fff}
+  .opts button[aria-pressed="true"][data-v="cam"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .photos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .photo{height:84px;border-radius:10px;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
+  .photo-add{height:84px;border:1px dashed #8a857b;border-radius:10px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--ink)}
+
+  /* Cierre */
+  .line{display:flex;justify-content:space-between;font-size:15px}
+  .sep{height:1px;background:var(--line)}
+  .sign{height:130px;border:1px dashed #8a857b;border-radius:12px;background:#fff;touch-action:none;width:100%;display:block}
+  .check{display:flex;align-items:center;gap:10px;font-size:14px}
+  .check input{width:22px;height:22px;accent-color:var(--accent)}
+  .done-wrap{padding:40px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;flex-grow:1}
+  .done-icon{width:72px;height:72px;border-radius:36px;background:var(--live);display:flex;align-items:center;justify-content:center}
+  .done-wrap h2{margin:0;font-family:var(--display);font-size:30px}
+  .done-wrap p{margin:0;font-size:15px;color:var(--muted);line-height:1.5}
+  .done-wrap .card{align-self:stretch;text-align:left}
+
+  @media (prefers-reduced-motion:no-preference){ .screen.active{animation:in .18s ease-out} @keyframes in{from{opacity:0}to{opacity:1}} }
+  .pick{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;min-height:56px;padding:10px 14px;border:1px solid var(--field);border-radius:10px;background:#fff;color:var(--ink);text-align:left;font-size:15px}
+  .pick small{display:block;font-size:12px;color:var(--muted)}
+  .msg-err{color:var(--accent-dk);font-size:13px;font-weight:600}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .demo{background:var(--accent-dk);color:#fff;font-size:12px;text-align:center;padding:4px}
+</style>
+</head>
+<body>
+<main class="app">
+  <div class="demo" id="demoBar" style="display:none">Modo demo: sin conexión a Odoo</div>
+
+  <!-- 1 · CLIENTE Y VEHÍCULO -->
+  <section class="screen active" id="s1" aria-label="Paso 1: cliente y vehículo">
+    <header>
+      <div>
+        <div class="brand">TOP · Taller</div>
+        <div class="sub">Nueva orden de trabajo</div>
+      </div>
+      <div class="sub" id="sucursalLbl">Sucursal</div>
+    </header>
+    <div class="progress"><span class="on"></span><span></span><span></span><span></span></div>
+    <div class="step">Paso 1 de 4: cliente y vehículo</div>
+    <div class="body">
+      <div class="field">
+        <label for="doc">DNI o CUIT del cliente</label>
+        <div class="row">
+          <input id="doc" class="plate-input" inputmode="numeric" placeholder="20-12345678-6" autocomplete="off" style="font-size:24px;letter-spacing:1px" onkeydown="if(event.key==='Enter')buscarCliente()">
+          <button class="btn btn-dark" id="btnBuscar" style="height:56px" onclick="buscarCliente()">Buscar</button>
+        </div>
+        <div class="hint">Se busca en los contactos de Odoo. La orden de venta se carga a ese cliente.</div>
+      </div>
+
+      <div class="card" id="docError" style="display:none;border:2px solid var(--accent-dk)">
+        <h3 id="docErrorTitle"></h3>
+        <div class="hint" id="docErrorText" style="font-size:13px"></div>
+      </div>
+
+      <div class="card" id="multiCard" style="display:none">
+        <h3>Hay más de un cliente con ese documento</h3>
+        <div class="hint" style="font-size:13px">Elegí a quién se le carga la orden.</div>
+        <div id="multiList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <div class="card" id="altaCard" style="display:none">
+        <h3>Dar de alta al cliente</h3>
+        <div class="hint" style="font-size:13px">Se crea el contacto en Odoo con estos datos y la orden se carga a su nombre.</div>
+        <div class="field">
+          <label for="altaDoc" id="altaDocLbl">DNI</label>
+          <input id="altaDoc" readonly style="background:var(--soft);font-weight:600">
+        </div>
+        <div class="field">
+          <label for="altaNombre">Nombre y apellido</label>
+          <input id="altaNombre" autocomplete="off" placeholder="Como figura en el documento" oninput="checkAlta()">
+        </div>
+        <div class="field">
+          <label for="altaTel">Teléfono <span style="font-weight:400;color:var(--muted)">(opcional)</span></label>
+          <input id="altaTel" inputmode="tel" autocomplete="off" placeholder="Para avisarle del próximo servicio">
+        </div>
+        <button class="btn btn-accent" id="altaBtn" onclick="altaCliente()" disabled style="min-height:52px">Crear cliente en Odoo</button>
+      </div>
+
+      <div class="card" id="clienteCard" style="display:none">
+        <div class="found">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="foundLbl">Cliente encontrado en Odoo</span>
+        </div>
+        <div class="grid2">
+          <div class="kv"><small>Cliente</small><b id="cNombre"></b></div>
+          <div class="kv"><small>Documento</small><b id="cDoc"></b></div>
+          <div class="kv"><small>Teléfono</small><b id="cTel"></b></div>
+          <div class="kv"><small>Condición IVA</small><b id="cIva"></b></div>
+        </div>
+      </div>
+
+      <div id="vehiculo" style="display:none;flex-direction:column;gap:14px">
+        <div class="field">
+          <label for="patente">Patente</label>
+          <input id="patente" class="plate-input" autocomplete="off" placeholder="AA 000 AA" oninput="this.value=this.value.toUpperCase();checkPaso1()">
+        </div>
+        <div class="field">
+          <label for="km">Kilometraje actual</label>
+          <input id="km" inputmode="numeric" placeholder="Ej: 50564" style="font-weight:600;font-size:20px" oninput="checkPaso1()">
+        </div>
+        <div class="field">
+          <label for="operario">Operario responsable</label>
+          <select id="operario" onchange="checkPaso1()"></select>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="cta" id="next1" onclick="go(2)" disabled>Siguiente: servicios</button></div>
+  </section>
+
+  <!-- 2 · SERVICIOS -->
+  <section class="screen" id="s2" aria-label="Paso 2: servicios">
+    <header>
+      <div><div class="plate js-plate"></div><div class="sub"><span class="js-cliente"></span>, <span class="js-km"></span> km</div></div>
+      <button class="back" onclick="go(1)">Volver</button>
+    </header>
+    <div class="progress"><span class="on"></span><span class="on"></span><span></span><span></span></div>
+    <div class="step">Paso 2 de 4: servicios (el precio lo pone la lista de Odoo)</div>
+    <div class="body" id="svcList" style="gap:8px"></div>
+    <div class="foot sticky">
+      <div class="row" style="align-items:baseline">
+        <div style="font-size:14px;color:var(--muted)"><span id="svcCount">0</span> servicios seleccionados</div>
+      </div>
+      <button class="cta" id="next2" onclick="go(3)">Pasar al trabajo</button>
+    </div>
+  </section>
+
+  <!-- 3 · TRABAJO EN TALLER -->
+  <section class="screen" id="s3" aria-label="Paso 3: trabajo en taller">
+    <header>
+      <div><div class="plate js-plate"></div><div class="sub" id="abiertaLbl"></div></div>
+      <button class="back" onclick="go(2)">Volver</button>
+    </header>
+    <div class="progress"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+    <div class="step">Paso 3 de 4: trabajo en el taller</div>
+    <div class="body" id="jobs"></div>
+    <div class="body" style="padding-top:0">
+      <div class="card">
+        <h3>Estado de neumáticos</h3>
+        <div class="grid2" id="wheels" style="gap:10px"></div>
+      </div>
+      <div class="field">
+        <label for="obs">Observaciones</label>
+        <textarea id="obs" placeholder="Ej: desgaste irregular en delantera izquierda, recomendar cambio"></textarea>
+      </div>
+    </div>
+    <div class="foot"><button class="cta" onclick="go(4)">Terminar y revisar</button></div>
+  </section>
+
+  <!-- 4 · CIERRE -->
+  <section class="screen" id="s4" aria-label="Paso 4: cierre">
+    <header>
+      <div><div class="plate js-plate"></div><div class="sub js-cliente"></div></div>
+      <button class="back" onclick="go(3)">Volver</button>
+    </header>
+    <div class="progress"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+    <div class="step">Paso 4 de 4: cierre y conformidad</div>
+    <div id="pending" style="display:flex;flex-direction:column;flex-grow:1">
+      <div class="body">
+        <div class="card">
+          <h3>Resumen</h3>
+          <div id="summary" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="hint">Los precios y el total los calcula Odoo al crear la orden.</div>
+        </div>
+        <div class="card">
+          <h3>Próximo servicio sugerido</h3>
+          <div style="font-size:15px" id="proximoTxt"></div>
+          <div class="hint">Queda en la nota de la orden y alimenta el recordatorio.</div>
+        </div>
+        <div class="field">
+          <div class="row"><span class="lbl">Conformidad del cliente</span><button class="link" onclick="clearSign()">Borrar firma</button></div>
+          <canvas id="sign" class="sign" aria-label="Espacio para firmar con el dedo"></canvas>
+        </div>
+        <div class="msg-err" id="sendErr" style="display:none"></div>
+      </div>
+      <div class="foot"><button class="cta" id="btnEnviar" onclick="enviar()">Crear orden de venta en Odoo</button></div>
+    </div>
+    <div id="done" class="done-wrap" style="display:none">
+      <div class="done-icon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <h2>Orden de venta creada en Odoo</h2>
+      <p>Presupuesto <b id="doneName" style="color:var(--ink)"></b> a nombre de <b class="js-cliente" style="color:var(--ink)"></b>. Caja lo confirma y factura.</p>
+      <div class="card">
+        <div class="row"><span class="hint" style="font-size:13px">Total según lista de Odoo</span><span class="total" id="doneTotal"></span></div>
+        <div class="row"><span class="hint" style="font-size:13px">Tiempo en taller</span><span class="total" id="totalTime" style="font-size:22px"></span></div>
+      </div>
+      <button class="cta dark" onclick="location.reload()">Nueva orden</button>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   CONFIGURACIÓN
+   WEBHOOK_URL vacío = modo demo (no llama a n8n).
+   Ejemplo: 'https://envy-recollect-last.ngrok-free.dev/webhook/ot-taller'
+   ===================================================================== */
+const CONFIG = {
+  WEBHOOK_URL: '',
+  HEADER_NAME: 'X-OT-Key',          // mismo nombre que la credencial Header Auth del Webhook
+  SUCURSAL: { codigo: 'maipu', nombre: 'Sucursal Maipú' },  // codigo = clave de SUCURSALES en el nodo "Preparar orden"
+  OPERARIOS: ['[Operario 1]', '[Operario 2]', '[Operario 3]'],
+  PROXIMO: { ali: { km: 10000, meses: 6 }, bal: { km: 10000, meses: 6 } }  // regla de próximo servicio
+};
+const DEMO = !CONFIG.WEBHOOK_URL;
+
+/* ---------- API a n8n ---------- */
+function getKey(){
+  let k = null;
+  try { k = localStorage.getItem('ot_key'); } catch(e){}
+  if(!k){
+    k = window.prompt('Clave del dispositivo (la da el administrador):');
+    if(!k) throw new Error('Falta la clave del dispositivo.');
+    if(window.confirm('¿Recordar la clave en este dispositivo?')){ try{ localStorage.setItem('ot_key', k); }catch(e){} }
+  }
+  return k;
+}
+async function api(action, payload){
+  const key = getKey();
+  const r = await fetch(CONFIG.WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [CONFIG.HEADER_NAME]: key, 'ngrok-skip-browser-warning': '1' },
+    body: JSON.stringify(Object.assign({ action }, payload))
+  });
+  if(r.status === 401 || r.status === 403){ try{ localStorage.removeItem('ot_key'); }catch(e){} throw new Error('Clave incorrecta. Volvé a intentar.'); }
+  if(!r.ok) throw new Error('Error del servidor (' + r.status + '). Avisá a sistemas.');
+  return r.json();
+}
+function busy(btn, on, txt){
+  if(on){ btn.dataset.txt = btn.textContent; btn.textContent = txt; btn.disabled = true; }
+  else { btn.textContent = btn.dataset.txt || btn.textContent; btn.disabled = false; }
+}
+
+/* ---------- Demo local ---------- */
+const DEMO_PARTNERS = { '20123456786': { id: 1, name: 'CLIENTE DE PRUEBA', vat: '20123456786', phone: '3764000000', iva: 'Consumidor Final' } };
+function demoBuscar(doc, tipo){
+  const partners = Object.values(DEMO_PARTNERS).filter(p => tipo === 'CUIT' ? p.vat === doc : (p.vat === doc || p.vat.slice(2,10) === doc.padStart(8,'0')));
+  return { found: partners.length > 0, partners };
+}
+
+/* ---------- Navegación ---------- */
+let partner = null, abiertaEn = null;
+function go(n){
+  if(n > 1 && !partner) return;
+  if(n === 3 && !services.some(s => s.qty > 0)) return;
+  document.querySelectorAll('.js-plate').forEach(e => e.textContent = patente());
+  document.querySelectorAll('.js-km').forEach(e => e.textContent = Number(kmVal()).toLocaleString('es-AR'));
+  if(n === 3 && !abiertaEn){ abiertaEn = new Date(); document.getElementById('abiertaLbl').textContent = 'Orden abierta ' + hhmm(abiertaEn); }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s' + n).classList.add('active');
+  window.scrollTo(0, 0);
+  if(n === 3) renderJobs();
+  if(n === 4){ renderSummary(); setTimeout(sizeCanvas, 0); }
+}
+const patente = () => document.getElementById('patente').value.toUpperCase().trim();
+const kmVal = () => document.getElementById('km').value.replace(/\D/g, '');
+
+/* ---------- Paso 1: cliente ---------- */
+const soloDigitos = v => (v || '').replace(/\D/g, '');
+function cuitValido(c){
+  if(!/^\d{11}$/.test(c)) return false;
+  const w = [5,4,3,2,7,6,5,4,3,2]; let sum = 0;
+  for(let i = 0; i < 10; i++) sum += Number(c[i]) * w[i];
+  let dv = 11 - (sum % 11); if(dv === 11) dv = 0; if(dv === 10) return false;
+  return dv === Number(c[10]);
+}
+const fmtCuit = c => c.length === 11 ? `${c.slice(0,2)}-${c.slice(2,10)}-${c.slice(10)}` : c;
+const fmtDoc = v => v.length === 11 ? 'CUIT ' + fmtCuit(v) : 'DNI ' + v;
+
+function limpiarPaso1(){
+  ['docError','multiCard','altaCard','clienteCard'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('vehiculo').style.display = 'none';
+  partner = null; checkPaso1();
+}
+function showErr(t, msg){
+  document.getElementById('docErrorTitle').textContent = t;
+  document.getElementById('docErrorText').textContent = msg;
+  document.getElementById('docError').style.display = 'flex';
+}
+
+async function buscarCliente(){
+  limpiarPaso1();
+  const d = soloDigitos(document.getElementById('doc').value);
+  const esDni = /^\d{7,8}$/.test(d), esCuit = d.length === 11;
+  if(!esDni && !esCuit) return showErr('Documento inválido', 'Ingresá un DNI de 7 u 8 dígitos o un CUIT de 11.');
+  if(esCuit && !cuitValido(d)) return showErr('CUIT inválido', 'El dígito verificador no coincide. Revisá el número.');
+  const tipo = esCuit ? 'CUIT' : 'DNI';
+  const btn = document.getElementById('btnBuscar');
+  let res;
+  try{
+    busy(btn, true, 'Buscando…');
+    res = DEMO ? demoBuscar(d, tipo) : await api('buscar_cliente', { doc: d });
+  }catch(e){ return showErr('No se pudo buscar', e.message); }
+  finally{ busy(btn, false); }
+
+  if(!res.found){
+    showErr('No existe en Odoo', `No hay ningún cliente con ${fmtDoc(d)}. Cargá su nombre para darlo de alta.`);
+    const el = document.getElementById('altaDoc');
+    document.getElementById('altaDocLbl').textContent = tipo;
+    el.value = esCuit ? fmtCuit(d) : d; el.dataset.raw = d; el.dataset.tipo = tipo;
+    document.getElementById('altaNombre').value = ''; document.getElementById('altaTel').value = '';
+    checkAlta();
+    document.getElementById('altaCard').style.display = 'flex';
+    document.getElementById('altaNombre').focus();
+    return;
+  }
+  if(res.partners.length > 1){
+    const list = document.getElementById('multiList');
+    list.innerHTML = '';
+    res.partners.forEach(p => {
+      const b = document.createElement('button');
+      b.className = 'pick';
+      b.innerHTML = `<span><b></b><small></small></span>`;
+      b.querySelector('b').textContent = p.name;
+      b.querySelector('small').textContent = fmtDoc(p.vat) + (p.phone ? ', ' + p.phone : '');
+      b.onclick = () => { document.getElementById('multiCard').style.display = 'none'; setPartner(p, false); };
+      list.appendChild(b);
+    });
+    document.getElementById('multiCard').style.display = 'flex';
+    return;
+  }
+  setPartner(res.partners[0], false);
+}
+
+function checkAlta(){
+  const ok = document.getElementById('altaNombre').value.trim().split(/\s+/).filter(Boolean).length >= 2;
+  document.getElementById('altaBtn').disabled = !ok;
+}
+async function altaCliente(){
+  const el = document.getElementById('altaDoc');
+  const payload = {
+    doc: el.dataset.raw,
+    nombre: document.getElementById('altaNombre').value.trim().replace(/\s+/g, ' ').toUpperCase(),
+    telefono: document.getElementById('altaTel').value.trim()
+  };
+  const btn = document.getElementById('altaBtn');
+  let res;
+  try{
+    busy(btn, true, 'Creando…');
+    if(DEMO){
+      const p = { id: Date.now(), name: payload.nombre, vat: payload.doc, phone: payload.telefono, iva: el.dataset.tipo === 'DNI' ? 'Consumidor Final' : '' };
+      DEMO_PARTNERS[p.vat] = p; res = { created: true, partners: [p] };
+    } else {
+      res = await api('crear_cliente', payload);
+    }
+  }catch(e){ busy(btn, false); return showErr('No se pudo crear el cliente', e.message); }
+  busy(btn, false);
+  document.getElementById('altaCard').style.display = 'none';
+  document.getElementById('docError').style.display = 'none';
+  setPartner(res.partners[0], !!res.created);
+}
+
+function setPartner(p, esNuevo){
+  partner = p;
+  document.getElementById('foundLbl').textContent = esNuevo ? 'Cliente creado en Odoo' : 'Cliente encontrado en Odoo';
+  document.getElementById('cNombre').textContent = p.name;
+  document.getElementById('cDoc').textContent = fmtDoc(p.vat);
+  document.getElementById('cTel').textContent = p.phone || 'Sin teléfono';
+  document.getElementById('cIva').textContent = p.iva || 'Sin dato';
+  document.querySelectorAll('.js-cliente').forEach(e => e.textContent = p.name);
+  document.getElementById('clienteCard').style.display = 'flex';
+  document.getElementById('vehiculo').style.display = 'flex';
+  document.getElementById('patente').focus();
+  checkPaso1();
+}
+function checkPaso1(){
+  const ok = !!partner && patente().replace(/\s/g,'').length >= 6 && kmVal().length > 0 && !!document.getElementById('operario').value;
+  document.getElementById('next1').disabled = !ok;
+}
+
+/* ---------- Paso 2: servicios ---------- */
+const services = [
+  { id: 'ali', name: 'Alineación', sub: 'Por vehículo', qty: 0 },
+  { id: 'bal', name: 'Balanceo', sub: 'Por rueda', qty: 0 },
+  { id: 'rot', name: 'Rotación', sub: 'Por vehículo', qty: 0 },
+  { id: 'par', name: 'Parches', sub: 'Por unidad', qty: 0 },
+  { id: 'com', name: 'Comba', sub: 'Por vehículo', qty: 0 },
+  { id: 'des', name: 'Desarme y arme', sub: 'Por rueda', qty: 0 },
+  { id: 'ace', name: 'Aceite y filtros', sub: 'Por vehículo', qty: 0 }
+];
+function renderServices(){
+  document.getElementById('svcList').innerHTML = services.map(s => `
+    <div class="svc ${s.qty > 0 ? 'sel' : ''}">
+      <div class="name"><b>${s.name}</b><small>${s.sub}</small></div>
+      <button class="qbtn minus" aria-label="Quitar ${s.name}" onclick="setQty('${s.id}',-1)">−</button>
+      <div class="qty" aria-live="polite">${s.qty}</div>
+      <button class="qbtn plus" aria-label="Agregar ${s.name}" onclick="setQty('${s.id}',1)">+</button>
+    </div>`).join('');
+  const n = services.filter(s => s.qty > 0).length;
+  document.getElementById('svcCount').textContent = n;
+  document.getElementById('next2').disabled = n === 0;
+}
+function setQty(id, d){ const s = services.find(x => x.id === id); s.qty = Math.max(0, s.qty + d); renderServices(); }
+
+/* ---------- Paso 3: trabajos con cronómetro ---------- */
+const jobs = {}; let tick = null;
+function fmt(ms){ const t = Math.floor(ms/1000); return [Math.floor(t/3600), Math.floor(t%3600/60), t%60].map(v => String(v).padStart(2,'0')).join(':'); }
+const hhmm = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+function renderJobs(){
+  const sel = services.filter(s => s.qty > 0);
+  sel.forEach(s => { if(!jobs[s.id]) jobs[s.id] = { start: null, end: null, grams: '' }; });
+  document.getElementById('jobs').innerHTML = sel.map(s => {
+    const j = jobs[s.id], running = j.start && !j.end, done = j.end;
+    const pill = done ? '<span class="pill done">Terminado</span>' : running ? '<span class="pill live">En curso</span>' : '<span class="pill wait">Pendiente</span>';
+    const grams = s.id === 'bal' ? `
+      <div class="field" style="flex:1;gap:4px">
+        <label for="g_${s.id}" style="font-size:13px">Contrapesos usados (g)</label>
+        <input id="g_${s.id}" placeholder="Ej: 120" inputmode="numeric" value="${j.grams}" oninput="jobs['${s.id}'].grams=this.value.replace(/\\D/g,'')" style="height:48px">
+      </div>` : '<div style="flex:1"></div>';
+    const action = done ? '' : running
+      ? `<button class="btn btn-dark" onclick="stopJob('${s.id}')">Finalizar</button>`
+      : `<button class="btn btn-accent" onclick="startJob('${s.id}')">Iniciar</button>`;
+    const meta = j.start ? `Inicio ${hhmm(new Date(j.start))}${j.end ? ', fin ' + hhmm(new Date(j.end)) : ''}.` : 'Tocá Iniciar cuando empieces el trabajo.';
+    return `
+      <div class="card job ${running ? 'running' : ''}">
+        <div class="row"><h3>${s.name} ×${s.qty}</h3>${pill}</div>
+        <div class="clock" data-clock="${s.id}" style="${j.start ? '' : 'color:var(--muted)'}">${j.start ? fmt((j.end || Date.now()) - j.start) : '00:00:00'}</div>
+        <div class="row" style="align-items:flex-end">${grams}${action}</div>
+        <div class="hint">${meta}</div>
+      </div>`;
+  }).join('');
+  clearInterval(tick);
+  if(sel.some(s => jobs[s.id].start && !jobs[s.id].end)){
+    tick = setInterval(() => document.querySelectorAll('[data-clock]').forEach(el => {
+      const j = jobs[el.dataset.clock]; if(j.start && !j.end) el.textContent = fmt(Date.now() - j.start);
+    }), 1000);
+  }
+}
+function startJob(id){ jobs[id].start = Date.now(); renderJobs(); }
+function stopJob(id){ jobs[id].end = Date.now(); renderJobs(); }
+
+const wheelState = { DI: 'ok', DD: 'ok', TI: 'ok', TD: 'ok' };
+const wheelNames = { DI: 'Delantera izq.', DD: 'Delantera der.', TI: 'Trasera izq.', TD: 'Trasera der.' };
+const wheelOpts = [['ok','OK'], ['reg','Regular'], ['cam','Cambiar']];
+function renderWheels(){
+  document.getElementById('wheels').innerHTML = Object.keys(wheelNames).map(k => `
+    <div class="wheel" data-w="${k}">
+      <b>${wheelNames[k]}</b>
+      <div class="psi"><input id="psi_${k}" aria-label="Presión ${wheelNames[k]} en PSI" placeholder="PSI" inputmode="numeric"> psi</div>
+      <div class="opts" role="group" aria-label="Desgaste ${wheelNames[k]}">
+        ${wheelOpts.map(([v,l]) => `<button data-v="${v}" aria-pressed="${wheelState[k] === v}" onclick="setWheel('${k}','${v}')">${l}</button>`).join('')}
+      </div>
+    </div>`).join('');
+}
+function setWheel(k, v){
+  wheelState[k] = v;
+  document.querySelectorAll(`[data-w="${k}"] .opts button`).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+}
+
+/* ---------- Paso 4: cierre ---------- */
+const mins = j => j && j.start && j.end ? Math.max(1, Math.round((j.end - j.start) / 60000)) : null;
+function proximo(){
+  const reglas = services.filter(s => s.qty > 0 && CONFIG.PROXIMO[s.id]).map(s => ({ s, r: CONFIG.PROXIMO[s.id] }));
+  if(!reglas.length) return null;
+  const km = Number(kmVal()) + Math.min(...reglas.map(x => x.r.km));
+  const f = new Date(); f.setMonth(f.getMonth() + Math.min(...reglas.map(x => x.r.meses)));
+  return { km, fecha: f.toISOString().slice(0,10), texto: `${reglas.map(x => x.s.name).join(' y ')} a los ${km.toLocaleString('es-AR')} km o el ${f.toLocaleDateString('es-AR')}` };
+}
+function renderSummary(){
+  const sel = services.filter(s => s.qty > 0);
+  document.getElementById('summary').innerHTML = sel.map(s => {
+    const j = jobs[s.id], m = mins(j);
+    const extra = [m ? m + ' min' : null, s.id === 'bal' && j && j.grams ? j.grams + ' g' : null].filter(Boolean).join(', ');
+    return `<div class="line"><span>${s.name} ×${s.qty}</span><span class="hint" style="font-size:14px">${extra || 'sin tiempo'}</span></div>`;
+  }).join('');
+  const p = proximo();
+  document.getElementById('proximoTxt').textContent = p ? p.texto : 'Sin regla para los servicios elegidos.';
+}
+
+async function enviar(){
+  const sel = services.filter(s => s.qty > 0);
+  const payload = {
+    partner_id: partner.id,
+    sucursal: CONFIG.SUCURSAL.codigo,
+    patente: patente(),
+    km: kmVal(),
+    operario: document.getElementById('operario').value,
+    abierta: abiertaEn ? abiertaEn.toISOString() : null,
+    servicios: sel.map(s => ({ id: s.id, nombre: s.name, qty: s.qty, minutos: mins(jobs[s.id]), gramos: s.id === 'bal' && jobs[s.id] ? jobs[s.id].grams : null })),
+    ruedas: Object.keys(wheelNames).map(k => ({ rueda: wheelNames[k], estado: wheelOpts.find(o => o[0] === wheelState[k])[1], psi: document.getElementById('psi_' + k).value.replace(/\D/g,'') })),
+    observaciones: document.getElementById('obs').value.trim(),
+    proximo: proximo()
+  };
+  const btn = document.getElementById('btnEnviar'), err = document.getElementById('sendErr');
+  err.style.display = 'none';
+  let res;
+  try{
+    busy(btn, true, 'Creando orden…');
+    res = DEMO ? { ok: true, name: 'S0XXXX (demo)', total: null } : await api('crear_orden', payload);
+  }catch(e){ busy(btn, false); err.textContent = e.message; err.style.display = 'block'; return; }
+  busy(btn, false);
+  document.getElementById('doneName').textContent = res.name;
+  document.getElementById('doneTotal').textContent = res.total != null ? '$ ' + Number(res.total).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '—';
+  const total = sel.reduce((a, s) => a + (mins(jobs[s.id]) || 0), 0);
+  document.getElementById('totalTime').textContent = total ? total + ' min' : 'Sin tiempos';
+  document.getElementById('pending').style.display = 'none';
+  document.getElementById('done').style.display = 'flex';
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Firma ---------- */
+const cv = document.getElementById('sign'), ctx = cv.getContext('2d'); let drawing = false;
+function sizeCanvas(){
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if(!r.width) return;
+  cv.width = r.width * dpr; cv.height = r.height * dpr; ctx.scale(dpr, dpr);
+  ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#1b1d1f';
+}
+const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cv.addEventListener('pointerdown', e => { drawing = true; cv.setPointerCapture(e.pointerId); const [x,y] = pos(e); ctx.beginPath(); ctx.moveTo(x,y); });
+cv.addEventListener('pointermove', e => { if(!drawing) return; const [x,y] = pos(e); ctx.lineTo(x,y); ctx.stroke(); });
+cv.addEventListener('pointerup', () => drawing = false);
+cv.addEventListener('pointercancel', () => drawing = false);
+function clearSign(){ ctx.clearRect(0, 0, cv.width, cv.height); }
+
+/* ---------- Inicio ---------- */
+document.getElementById('sucursalLbl').textContent = CONFIG.SUCURSAL.nombre;
+document.getElementById('operario').innerHTML = '<option value="">Elegí un operario</option>' + CONFIG.OPERARIOS.map(o => `<option>${o}</option>`).join('');
+if(DEMO) document.getElementById('demoBar').style.display = 'block';
+renderServices(); renderWheels();
+</script>
+</body>
+</html>
